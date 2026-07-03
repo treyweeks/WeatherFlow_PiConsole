@@ -27,18 +27,18 @@
     Image:
         id: radar_image
         source: ''
-        pos_hint: {'x': 5/262, 'y': 18/202}
-        size_hint: (252/262, 163/202)
+        pos_hint: {'x': 3/262, 'y': 5/202}
+        size_hint: (256/262, 178/202)
         allow_stretch: True
-        keep_ratio: True
+        keep_ratio: False
 
     ## Status / loading label, hidden once frames are available
     Label:
         id: status_label
         text: 'Loading radar…'
         opacity: 1
-        pos_hint: {'x': 5/262, 'y': 18/202}
-        size_hint: (252/262, 163/202)
+        pos_hint: {'x': 3/262, 'y': 5/202}
+        size_hint: (256/262, 178/202)
         font_name: 'fonts/Inter-Medium.ttf'
         font_size: dp(14*app.scaleFactor)
         color: utils.rgba('#c8c8c8ff')

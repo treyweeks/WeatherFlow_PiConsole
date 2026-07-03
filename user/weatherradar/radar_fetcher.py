@@ -37,7 +37,7 @@ _HEADERS       = {'User-Agent': 'WeatherFlow-PIConsole/RadarPanel/1.0 (personal 
 _RAINVIEWER    = 'https://api.rainviewer.com/public/weather-maps.json'
 _ZIPPOPOTAM    = 'https://api.zippopotam.us/{country}/{zip}'
 _OSM_TILE      = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
-_RADAR_TILE    = '{host}{path}/512/{z}/{x}/{y}/{color}/{smooth}_{snow}.png'
+_RADAR_TILE    = '{host}{path}/256/{z}/{x}/{y}/{color}/{smooth}_{snow}.png'
 _TILE_PX       = 256
 
 
@@ -233,7 +233,6 @@ def fetch_radar_frames(config):
                         color=color, smooth=smooth, snow=snow)
                     try:
                         radar = _fetch_image(url)
-                        radar = radar.resize((_TILE_PX, _TILE_PX), Image.LANCZOS)
                         frame.paste(radar, (col * _TILE_PX, row * _TILE_PX), radar)
                     except Exception as exc:
                         print(f'[WeatherRadar] Radar tile error: {exc}')
