@@ -40,6 +40,7 @@ class WeatherRadarPanel(panelTemplate):
         self._config         = None
         self._frame_textures = []   # pre-loaded Kivy textures
         self._frame_index    = 0
+        self._anim_direction = 1    # 1 = forward, -1 = reverse
         self._anim_event     = None
         self._refresh_event  = None
         # Defer startup so the full widget tree is available
@@ -102,7 +103,14 @@ class WeatherRadarPanel(panelTemplate):
     def _advance_frame(self, dt):
         if not self._frame_textures:
             return
-        self._frame_index = (self._frame_index + 1) % len(self._frame_textures)
+        next_index = self._frame_index + self._anim_direction
+        if next_index >= len(self._frame_textures):
+            self._anim_direction = -1
+            next_index = self._frame_index - 1
+        elif next_index < 0:
+            self._anim_direction = 1
+            next_index = 1
+        self._frame_index = next_index
         self._render_frame(self._frame_index)
 
     def _render_frame(self, index):

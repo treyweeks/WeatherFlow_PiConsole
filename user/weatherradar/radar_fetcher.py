@@ -2,8 +2,9 @@
 WeatherFlow Tempest and Smart Home Weather stations.
 
 Fetches radar tile frames from the free RainViewer API and composites them
-onto OpenStreetMap base tiles using Pillow.  Output is a list of PNG file
-paths that the WeatherRadarPanel cycles through as an animation.
+onto OpenStreetMap base tiles using Pillow.  Frames are cached by timestamp
+so only new data is downloaded on each refresh.  Frames older than
+`history_hours` are automatically purged.
 
 Free data sources (no API key required):
   - Radar:    https://www.rainviewer.com/api.html
@@ -18,6 +19,7 @@ import io
 import json
 import math
 import os
+import time
 
 import requests
 from PIL import Image
@@ -33,10 +35,10 @@ BASE_KEY_PATH = os.path.join(_HERE, 'base_map_key.txt')
 
 _HEADERS       = {'User-Agent': 'WeatherFlow-PIConsole/RadarPanel/1.0 (personal use)'}
 _RAINVIEWER    = 'https://api.rainviewer.com/public/weather-maps.json'
-_ZIPPOPOTAM   = 'https://api.zippopotam.us/{country}/{zip}'
-_OSM_TILE     = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
-_RADAR_TILE   = '{host}{path}/512/{z}/{x}/{y}/{color}/{smooth}_{snow}.png'
-_TILE_PX      = 256   # OSM tiles are always 256 px; RainViewer 512 px tiles are scaled down
+_ZIPPOPOTAM    = 'https://api.zippopotam.us/{country}/{zip}'
+_OSM_TILE      = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+_RADAR_TILE    = '{host}{path}/512/{z}/{x}/{y}/{color}/{smooth}_{snow}.png'
+_TILE_PX       = 256
 
 
 # ---------------------------------------------------------------------------
@@ -122,46 +124,105 @@ def _ensure_base_map(tile_x, tile_y, zoom, grid_size):
 
 
 # ---------------------------------------------------------------------------
+# Frame cache helpers
+# ---------------------------------------------------------------------------
+def _frame_path(timestamp):
+    """Canonical path for a cached frame PNG, keyed by RainViewer timestamp."""
+    return os.path.join(FRAMES_DIR, f'frame_{timestamp}.png')
+
+
+def _purge_old_frames(history_hours):
+    """Delete any cached frame PNG older than *history_hours*."""
+    cutoff = time.time() - history_hours * 3600
+    if not os.path.isdir(FRAMES_DIR):
+        return
+    for name in os.listdir(FRAMES_DIR):
+        if not (name.startswith('frame_') and name.endswith('.png')):
+            continue
+        try:
+            ts = int(name[len('frame_'):-len('.png')])
+            if ts < cutoff:
+                os.remove(os.path.join(FRAMES_DIR, name))
+                print(f'[WeatherRadar] Purged old frame {name}')
+        except ValueError:
+            pass
+
+
+def _cached_frame_paths(history_hours):
+    """
+    Return all cached frame paths within the history window,
+    sorted oldest → newest.
+    """
+    cutoff = time.time() - history_hours * 3600
+    paths  = []
+    if not os.path.isdir(FRAMES_DIR):
+        return paths
+    for name in os.listdir(FRAMES_DIR):
+        if not (name.startswith('frame_') and name.endswith('.png')):
+            continue
+        try:
+            ts = int(name[len('frame_'):-len('.png')])
+            if ts >= cutoff:
+                paths.append((ts, os.path.join(FRAMES_DIR, name)))
+        except ValueError:
+            pass
+    paths.sort(key=lambda t: t[0])
+    return [p for _, p in paths]
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 def fetch_radar_frames(config):
     """
-    Fetch RainViewer radar frames and composite with the OSM base map.
+    Incrementally update the rolling radar frame cache and return the full
+    list of cached frame paths (oldest → newest) within the history window.
 
-    Returns a list of absolute paths to rendered PNG frames (oldest → newest).
+    Only timestamps not already on disk are downloaded and composited.
+    Frames older than `history_hours` are automatically purged.
     Returns an empty list on any unrecoverable error.
     """
     try:
-        zip_code    = str(config.get('zip_code', ''))
-        country     = config.get('country', 'us')
-        zoom        = int(config.get('zoom', 7))
-        grid_size   = int(config.get('tile_grid', 3))
-        past_frames = int(config.get('past_frames', 12))
-        color       = int(config.get('color_scheme', 6))
-        smooth      = int(config.get('smooth', 1))
-        snow        = int(config.get('snow', 0))
-        half        = grid_size // 2
+        zip_code      = str(config.get('zip_code', ''))
+        country       = config.get('country', 'us')
+        zoom          = int(config.get('zoom', 7))
+        grid_size     = int(config.get('tile_grid', 3))
+        history_hours = float(config.get('history_hours', 3))
+        color         = int(config.get('color_scheme', 6))
+        smooth        = int(config.get('smooth', 1))
+        snow          = int(config.get('snow', 0))
+        half          = grid_size // 2
 
-        lat, lng           = zip_to_coords(zip_code, country)
-        tile_x, tile_y     = coords_to_tile(lat, lng, zoom)
-        base               = _ensure_base_map(tile_x, tile_y, zoom, grid_size)
+        # Purge frames outside the history window first
+        _purge_old_frames(history_hours)
 
-        rv        = requests.get(_RAINVIEWER, timeout=10, headers=_HEADERS)
+        lat, lng       = zip_to_coords(zip_code, country)
+        tile_x, tile_y = coords_to_tile(lat, lng, zoom)
+        base           = _ensure_base_map(tile_x, tile_y, zoom, grid_size)
+
+        # Fetch RainViewer frame list (all past frames they provide)
+        rv       = requests.get(_RAINVIEWER, timeout=10, headers=_HEADERS)
         rv.raise_for_status()
-        rv_data   = rv.json()
-        host      = rv_data['host']
-        meta_list = rv_data['radar']['past'][-past_frames:]
+        rv_data  = rv.json()
+        host     = rv_data['host']
+        cutoff   = time.time() - history_hours * 3600
+        # Only keep frames within our history window
+        meta_list = [m for m in rv_data['radar']['past'] if m['time'] >= cutoff]
 
         if not meta_list:
-            print('[WeatherRadar] RainViewer returned no radar frames')
-            return []
+            print('[WeatherRadar] No frames within history window')
+            return _cached_frame_paths(history_hours)
 
-        os.makedirs(FRAMES_DIR, exist_ok=True)
-        frame_paths = []
+        new_count = 0
+        for meta in meta_list:
+            ts        = meta['time']
+            out_path  = _frame_path(ts)
 
-        for i, meta in enumerate(meta_list):
+            # Skip frames we already have on disk
+            if os.path.exists(out_path):
+                continue
+
             frame = base.copy()
-
             for row in range(grid_size):
                 for col in range(grid_size):
                     tx  = tile_x - half + col
@@ -172,21 +233,22 @@ def fetch_radar_frames(config):
                         color=color, smooth=smooth, snow=snow)
                     try:
                         radar = _fetch_image(url)
-                        # RainViewer tiles are 512 px; scale to match OSM
                         radar = radar.resize((_TILE_PX, _TILE_PX), Image.LANCZOS)
-                        frame.paste(radar,
-                                    (col * _TILE_PX, row * _TILE_PX),
-                                    radar)          # alpha channel as mask
+                        frame.paste(radar, (col * _TILE_PX, row * _TILE_PX), radar)
                     except Exception as exc:
                         print(f'[WeatherRadar] Radar tile error: {exc}')
 
-            out_path = os.path.join(FRAMES_DIR, f'frame_{i:02d}.png')
             frame.convert('RGB').save(out_path)
-            frame_paths.append(out_path)
+            new_count += 1
 
-        print(f'[WeatherRadar] {len(frame_paths)} frames ready')
-        return frame_paths
+        if new_count:
+            print(f'[WeatherRadar] Downloaded {new_count} new frame(s)')
+
+        all_paths = _cached_frame_paths(history_hours)
+        print(f'[WeatherRadar] {len(all_paths)} frames in cache ({history_hours}h window)')
+        return all_paths
 
     except Exception as exc:
         print(f'[WeatherRadar] fetch_radar_frames failed: {exc}')
-        return []
+        # Return whatever is cached rather than showing nothing
+        return _cached_frame_paths(config.get('history_hours', 3))
