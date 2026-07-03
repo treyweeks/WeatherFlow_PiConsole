@@ -88,6 +88,14 @@ Open `~/wfpiconsole/user/weatherradar/weatherradar_config.json` on the Pi:
 | 8    | ~78 mi            | ~234 mi        |
 | 9    | ~39 mi            | ~117 mi        |
 
+> **Note:** RainViewer only serves radar tiles up to zoom 7. Setting `zoom`
+> higher than 7 will cause tiles to display an "unsupported zoom level" message
+> instead of radar data. Keep `zoom` at 7 or below.
+>
+> To get a closer or wider view without changing zoom, adjust `tile_grid`
+> instead — a 5×5 grid at zoom 7 gives ~775 mi coverage, a 2×2 grid gives
+> ~310 mi for a tighter local view.
+
 ---
 
 ## Step 4 — Enable the panel in the console

@@ -1,7 +1,7 @@
 {
     "zip_code": "29466",
     "country": "us",
-    "zoom": 8,
+    "zoom": 7,
     "tile_grid": 3,
     "refresh_interval": 300,
     "history_hours": 3,
