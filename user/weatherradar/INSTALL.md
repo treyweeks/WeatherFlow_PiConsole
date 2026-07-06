@@ -73,13 +73,24 @@ Open `~/wfpiconsole/user/weatherradar/weatherradar_config.json` on the Pi:
 | `country` | Country code for zippopotam.us | `us`, `ca`, `gb`, etc. |
 | `zoom` | Map zoom level | `6`–`7` (7 = regional; max supported by RainViewer) |
 | `tile_grid` | Grid of tiles around center (N×N) | `1`–`5` (3 = good regional view) |
-| `tile_theme` | Base map style | `osm` (standard), `carto_dark` ✓, `carto_light` |
+| `tile_theme` | Base map style | see **Map themes** table below |
 | `history_hours` | Hours of radar history to keep and animate | `1`–`3` (3 = ~18 frames) |
 | `refresh_interval` | Seconds between data refreshes | `300` (RainViewer updates every ~10 min) |
 | `color_scheme` | RainViewer color palette (0–8) | `6` = vivid, `1` = original |
 | `smooth` | Smooth radar edges (0 or 1) | `1` |
 | `snow` | Show snow as separate color (0 or 1) | `0` |
 | `frame_delay` | Seconds between animation frames | `0.15`–`0.4` |
+
+**Map themes (all free, no API key required):**
+
+| `tile_theme` | Appearance |
+|---|---|
+| `osm` | Standard OpenStreetMap — light, detailed |
+| `carto_dark` | Dark grey land and water, minimal labels |
+| `carto_light` | Light grey, minimal |
+| `carto_voyager` | Blue water, light/cream land |
+
+---
 
 **Coverage guide for `zoom` + `tile_grid`:**
 
@@ -179,4 +190,4 @@ rm ~/wfpiconsole/user/weatherradar/frames/frame_*.png
 
 - Radar data: [RainViewer](https://www.rainviewer.com/) (free for personal/educational use)
 - Base map (osm): © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors
-- Base map (carto_dark / carto_light): © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, © [CARTO](https://carto.com/attributions)
+- Base map (carto_*): © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, © [CARTO](https://carto.com/attributions)

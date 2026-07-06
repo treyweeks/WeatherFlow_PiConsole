@@ -39,11 +39,12 @@ _ZIPPOPOTAM    = 'https://api.zippopotam.us/{country}/{zip}'
 _RADAR_TILE    = '{host}{path}/256/{z}/{x}/{y}/{color}/{smooth}_{snow}.png'
 _TILE_PX       = 256
 
-# Base map tile sources — CartoDB subdomains are rotated to spread requests
+# Base map tile sources — {s} is a CartoDB subdomain rotated a–d to spread load
 _TILE_THEMES = {
-    'osm':        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    'carto_dark': 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png',
-    'carto_light': 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png',
+    'osm':           'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    'carto_dark':    'https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png',
+    'carto_light':   'https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png',
+    'carto_voyager': 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/rastertiles/voyager/{z}/{x}/{y}.png',
 }
 _CARTO_SUBDOMAINS = ['a', 'b', 'c', 'd']
 
