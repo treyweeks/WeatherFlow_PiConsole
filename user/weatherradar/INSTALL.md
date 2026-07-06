@@ -122,6 +122,19 @@ The panel button labelled **Weather Radar** will appear in the bottom bar.
 
 ---
 
+## Location marker
+
+A blue dot with a white ring is automatically drawn on each radar frame at
+your station's exact position.  The coordinates are read directly from
+`wfpiconsole.ini` (`[Station]` → `Latitude` / `Longitude`) — no extra
+configuration is needed.
+
+If the marker is not visible, your station coordinates may fall outside the
+tile grid.  Try increasing `tile_grid` or verify that `wfpiconsole.ini`
+contains valid `Latitude` and `Longitude` values under `[Station]`.
+
+---
+
 ## How the frame cache works
 
 Frames are stored as `frames/frame_{timestamp}.png`, keyed by the RainViewer
@@ -183,6 +196,15 @@ rm ~/wfpiconsole/user/weatherradar/frames/frame_*.png
 **Animation is jerky:**
 - Increase `frame_delay` to `0.3` or `0.4` to reduce CPU during animation.
 - Reduce `tile_grid` to `2` or `1` to decrease tiles fetched per refresh.
+
+**Radar image is square instead of filling the panel width:**
+- Ensure `keep_ratio: False` is set in `user/customPanels.kv` under the `Image:` block.
+- This can be silently reverted if the file is copied from a backup — check with `grep keep_ratio user/customPanels.kv`.
+
+**Location marker is not visible:**
+- Confirm `wfpiconsole.ini` has valid values under `[Station]` for `Latitude` and `Longitude`.
+- The marker will not appear if the station falls outside the tile grid — try increasing `tile_grid`.
+- Clear cached frames so they are rebuilt with the marker: `rm ~/wfpiconsole/user/weatherradar/frames/frame_*.png`
 
 ---
 

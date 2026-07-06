@@ -15,6 +15,7 @@ Dependencies:
   pip install Pillow requests
 """
 
+import configparser
 import io
 import json
 import math
@@ -22,7 +23,7 @@ import os
 import time
 
 import requests
-from PIL import Image
+from PIL import Image, ImageDraw
 
 # ---------------------------------------------------------------------------
 # Paths relative to this file's directory
@@ -136,6 +137,62 @@ def _ensure_base_map(tile_x, tile_y, zoom, grid_size, theme='osm'):
 
 
 # ---------------------------------------------------------------------------
+# Location marker
+# ---------------------------------------------------------------------------
+def _read_station_coords():
+    """Read Latitude and Longitude from wfpiconsole.ini."""
+    ini_path = os.path.join(_HERE, '..', '..', 'wfpiconsole.ini')
+    cfg = configparser.ConfigParser()
+    cfg.read(ini_path)
+    lat = float(cfg['Station']['Latitude'])
+    lng = float(cfg['Station']['Longitude'])
+    return lat, lng
+
+
+def _latlon_to_pixel(lat, lng, tile_x, tile_y, zoom, grid_size):
+    """
+    Convert a lat/lng to a pixel (x, y) position within the stitched image.
+    Returns None if the point falls outside the image bounds.
+    """
+    half  = grid_size // 2
+    n     = 2 ** zoom
+    # Fractional tile coordinates of the target point
+    fx    = (lng + 180.0) / 360.0 * n
+    lat_r = math.radians(lat)
+    fy    = (1.0 - math.asinh(math.tan(lat_r)) / math.pi) / 2.0 * n
+
+    # Pixel offset from the top-left tile in the grid
+    origin_tx = tile_x - half
+    origin_ty = tile_y - half
+    px = int((fx - origin_tx) * _TILE_PX)
+    py = int((fy - origin_ty) * _TILE_PX)
+
+    total = _TILE_PX * grid_size
+    if not (0 <= px < total and 0 <= py < total):
+        return None
+    return px, py
+
+
+def _draw_location_marker(image, pixel_pos):
+    """Draw a blue dot with a white ring at *pixel_pos* on *image* in-place."""
+    x, y   = pixel_pos
+    draw   = ImageDraw.Draw(image)
+    outer  = 10   # white ring outer radius
+    inner  = 7    # white ring inner radius (= blue dot radius)
+    dot    = 5    # solid blue dot radius
+
+    # White ring
+    draw.ellipse([x - outer, y - outer, x + outer, y + outer],
+                 fill='white')
+    # Blue fill inside ring
+    draw.ellipse([x - inner, y - inner, x + inner, y + inner],
+                 fill='#2196F3')
+    # Bright centre dot
+    draw.ellipse([x - dot, y - dot, x + dot, y + dot],
+                 fill='#64B5F6')
+
+
+# ---------------------------------------------------------------------------
 # Frame cache helpers
 # ---------------------------------------------------------------------------
 def _frame_path(timestamp):
@@ -213,6 +270,14 @@ def fetch_radar_frames(config):
         tile_x, tile_y = coords_to_tile(lat, lng, zoom)
         base           = _ensure_base_map(tile_x, tile_y, zoom, grid_size, tile_theme)
 
+        # Resolve station location marker once (reads wfpiconsole.ini)
+        try:
+            st_lat, st_lng = _read_station_coords()
+            marker_pos     = _latlon_to_pixel(st_lat, st_lng, tile_x, tile_y, zoom, grid_size)
+        except Exception as exc:
+            print(f'[WeatherRadar] Could not read station coords: {exc}')
+            marker_pos = None
+
         # Fetch RainViewer frame list (all past frames they provide)
         rv       = requests.get(_RAINVIEWER, timeout=10, headers=_HEADERS)
         rv.raise_for_status()
@@ -249,6 +314,9 @@ def fetch_radar_frames(config):
                         frame.paste(radar, (col * _TILE_PX, row * _TILE_PX), radar)
                     except Exception as exc:
                         print(f'[WeatherRadar] Radar tile error: {exc}')
+
+            if marker_pos:
+                _draw_location_marker(frame, marker_pos)
 
             frame.convert('RGB').save(out_path)
             new_count += 1
