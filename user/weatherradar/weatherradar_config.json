@@ -3,6 +3,7 @@
     "country": "us",
     "zoom": 7,
     "tile_grid": 3,
+    "tile_theme": "carto_dark",
     "refresh_interval": 300,
     "history_hours": 3,
     "color_scheme": 6,

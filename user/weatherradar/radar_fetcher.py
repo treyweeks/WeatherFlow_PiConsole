@@ -36,9 +36,16 @@ BASE_KEY_PATH = os.path.join(_HERE, 'base_map_key.txt')
 _HEADERS       = {'User-Agent': 'WeatherFlow-PIConsole/RadarPanel/1.0 (personal use)'}
 _RAINVIEWER    = 'https://api.rainviewer.com/public/weather-maps.json'
 _ZIPPOPOTAM    = 'https://api.zippopotam.us/{country}/{zip}'
-_OSM_TILE      = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
 _RADAR_TILE    = '{host}{path}/256/{z}/{x}/{y}/{color}/{smooth}_{snow}.png'
 _TILE_PX       = 256
+
+# Base map tile sources — CartoDB subdomains are rotated to spread requests
+_TILE_THEMES = {
+    'osm':        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    'carto_dark': 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png',
+    'carto_light': 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png',
+}
+_CARTO_SUBDOMAINS = ['a', 'b', 'c', 'd']
 
 
 # ---------------------------------------------------------------------------
@@ -84,13 +91,13 @@ def _fetch_image(url, timeout=15):
 # ---------------------------------------------------------------------------
 # OSM base map
 # ---------------------------------------------------------------------------
-def _ensure_base_map(tile_x, tile_y, zoom, grid_size):
+def _ensure_base_map(tile_x, tile_y, zoom, grid_size, theme='osm'):
     """
-    Return a stitched OSM base-map PIL Image for the given tile grid,
-    rebuilding it only when the view parameters change.
+    Return a stitched base-map PIL Image for the given tile grid,
+    rebuilding it only when the view parameters or theme change.
     """
     os.makedirs(FRAMES_DIR, exist_ok=True)
-    key = f'{zoom}_{tile_x}_{tile_y}_{grid_size}'
+    key = f'{zoom}_{tile_x}_{tile_y}_{grid_size}_{theme}'
 
     cached_key = ''
     if os.path.exists(BASE_KEY_PATH):
@@ -100,22 +107,26 @@ def _ensure_base_map(tile_x, tile_y, zoom, grid_size):
     if cached_key == key and os.path.exists(BASE_MAP_PATH):
         return Image.open(BASE_MAP_PATH).convert('RGBA')
 
-    print(f'[WeatherRadar] Rebuilding base map zoom={zoom} grid={grid_size}x{grid_size}')
+    tile_url_template = _TILE_THEMES.get(theme, _TILE_THEMES['osm'])
+    print(f'[WeatherRadar] Rebuilding base map zoom={zoom} grid={grid_size}x{grid_size} theme={theme}')
     half   = grid_size // 2
     size   = _TILE_PX * grid_size
     canvas = Image.new('RGBA', (size, size))
+    sub_i  = 0  # subdomain rotation index for CartoDB
 
     for row in range(grid_size):
         for col in range(grid_size):
             tx  = tile_x - half + col
             ty  = tile_y - half + row
-            url = _OSM_TILE.format(z=zoom, x=tx, y=ty)
+            s   = _CARTO_SUBDOMAINS[sub_i % len(_CARTO_SUBDOMAINS)]
+            sub_i += 1
+            url = tile_url_template.format(z=zoom, x=tx, y=ty, s=s)
             try:
                 tile = _fetch_image(url)
                 tile = tile.resize((_TILE_PX, _TILE_PX), Image.LANCZOS)
                 canvas.paste(tile, (col * _TILE_PX, row * _TILE_PX))
             except Exception as exc:
-                print(f'[WeatherRadar] OSM tile {zoom}/{tx}/{ty} failed: {exc}')
+                print(f'[WeatherRadar] Base tile {zoom}/{tx}/{ty} failed: {exc}')
 
     canvas.save(BASE_MAP_PATH)
     with open(BASE_KEY_PATH, 'w') as fh:
@@ -187,6 +198,7 @@ def fetch_radar_frames(config):
         country       = config.get('country', 'us')
         zoom          = int(config.get('zoom', 7))
         grid_size     = int(config.get('tile_grid', 3))
+        tile_theme    = config.get('tile_theme', 'osm')
         history_hours = float(config.get('history_hours', 3))
         color         = int(config.get('color_scheme', 6))
         smooth        = int(config.get('smooth', 1))
@@ -198,7 +210,7 @@ def fetch_radar_frames(config):
 
         lat, lng       = zip_to_coords(zip_code, country)
         tile_x, tile_y = coords_to_tile(lat, lng, zoom)
-        base           = _ensure_base_map(tile_x, tile_y, zoom, grid_size)
+        base           = _ensure_base_map(tile_x, tile_y, zoom, grid_size, tile_theme)
 
         # Fetch RainViewer frame list (all past frames they provide)
         rv       = requests.get(_RAINVIEWER, timeout=10, headers=_HEADERS)

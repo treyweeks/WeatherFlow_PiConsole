@@ -17,7 +17,7 @@ user/
     radar_fetcher.py         ← tile fetching & compositing logic
     weatherradar_config.json ← your configuration (edit this)
     frames/                  ← created at runtime (PNG frame cache)
-    base_map.png             ← created at runtime (OSM tile cache)
+    base_map.png             ← created at runtime (base map tile cache)
 ```
 
 ---
@@ -57,6 +57,7 @@ Open `~/wfpiconsole/user/weatherradar/weatherradar_config.json` on the Pi:
     "country": "us",
     "zoom": 7,
     "tile_grid": 3,
+    "tile_theme": "carto_dark",
     "history_hours": 3,
     "refresh_interval": 300,
     "color_scheme": 6,
@@ -70,8 +71,9 @@ Open `~/wfpiconsole/user/weatherradar/weatherradar_config.json` on the Pi:
 |-----|-------------|-------------------|
 | `zip_code` | Your postal code | any valid code |
 | `country` | Country code for zippopotam.us | `us`, `ca`, `gb`, etc. |
-| `zoom` | Map zoom level | `6`–`9` (7 = regional) |
+| `zoom` | Map zoom level | `6`–`7` (7 = regional; max supported by RainViewer) |
 | `tile_grid` | Grid of tiles around center (N×N) | `1`–`5` (3 = good regional view) |
+| `tile_theme` | Base map style | `osm` (standard), `carto_dark` ✓, `carto_light` |
 | `history_hours` | Hours of radar history to keep and animate | `1`–`3` (3 = ~18 frames) |
 | `refresh_interval` | Seconds between data refreshes | `300` (RainViewer updates every ~10 min) |
 | `color_scheme` | RainViewer color palette (0–8) | `6` = vivid, `1` = original |
@@ -157,7 +159,15 @@ rm ~/wfpiconsole/user/weatherradar/frames/frame_*.png
 - Check that `user/weatherradar/frames/` contains PNG files after the first refresh.
 
 **Base map tiles show as grey squares:**
-- OpenStreetMap rate-limits aggressive tile fetching. Wait a minute and restart.
+- Tile servers rate-limit aggressive fetching. Wait a minute and restart.
+- If using `carto_dark` or `carto_light`, try switching to `osm` temporarily to confirm connectivity.
+
+**Switching `tile_theme` shows the old map:**
+- Delete the cached base map so it rebuilds with the new theme:
+  ```bash
+  rm ~/wfpiconsole/user/weatherradar/base_map.png
+  rm ~/wfpiconsole/user/weatherradar/base_map_key.txt
+  ```
 
 **Animation is jerky:**
 - Increase `frame_delay` to `0.3` or `0.4` to reduce CPU during animation.
@@ -168,4 +178,5 @@ rm ~/wfpiconsole/user/weatherradar/frames/frame_*.png
 ## Attribution
 
 - Radar data: [RainViewer](https://www.rainviewer.com/) (free for personal/educational use)
-- Base map: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors
+- Base map (osm): © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors
+- Base map (carto_dark / carto_light): © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, © [CARTO](https://carto.com/attributions)
